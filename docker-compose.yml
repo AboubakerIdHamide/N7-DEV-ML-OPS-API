@@ -1,0 +1,71 @@
+services:
+  mlflow:
+    build: .
+    environment:
+      MLFLOW_SERVER_ALLOWED_HOSTS: "mlflow:5000,localhost:5000,127.0.0.1:5000"
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - sqlite:////mlflow-data/mlflow.db
+      - --serve-artifacts
+      - --artifacts-destination
+      - /mlflow-data/artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow-data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  trainer:
+    build: .
+    command: ["python", "-m", "app.train"]
+    volumes:
+      - credit-data:/app/data
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: credit-risk
+      MODEL_NAME: credit-risk-classifier
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    profiles: ["training"]
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: credit-risk-classifier
+      MODEL_URI: models:/credit-risk-classifier@champion
+    depends_on:
+      mlflow:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+
+volumes:
+  mlflow-data:
+  credit-data:
