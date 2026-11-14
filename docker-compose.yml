@@ -35,7 +35,7 @@ services:
     build: .
     command: ["python", "-m", "app.train"]
     volumes:
-      - credit-data:/app/data
+      - ./data:/app/data
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_EXPERIMENT_NAME: credit-risk
@@ -68,4 +68,3 @@ services:
 
 volumes:
   mlflow-data:
-  credit-data:

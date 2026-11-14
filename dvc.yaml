@@ -1,0 +1,8 @@
+stages:
+  prepare_data:
+    cmd: python -m app.prepare_data
+    deps:
+      - app/data.py
+      - app/prepare_data.py
+    outs:
+      - data/raw/credit_default_selected.csv

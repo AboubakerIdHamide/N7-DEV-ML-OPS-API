@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  prepare_data:
+    cmd: python -m app.prepare_data
+    deps:
+    - path: app/data.py
+      hash: md5
+      md5: 05e3f411e5414d9eb516a762277a23fe
+      size: 4767
+    - path: app/prepare_data.py
+      hash: md5
+      md5: 9f23930380bf86df515cca14fd644b13
+      size: 394
+    outs:
+    - path: data/raw/credit_default_selected.csv
+      hash: md5
+      md5: 5829824a52397fd1ed222d52e135b421
+      size: 2428284

@@ -12,7 +12,31 @@ The source data was collected in Taiwan in 2005. It is public research data and 
 
 ## Current stage
 
-The initial pipeline uses the actual UCI dataset rather than generated synthetic records. On the first training run, the trainer downloads the dataset through `ucimlrepo`, selects the approved fields, and caches that selected CSV in a Docker named volume. It is not committed to Git. Data versioning with DVC and a configured remote are the next MLOps stage.
+The project uses the actual UCI dataset rather than generated synthetic records. The selected dataset is prepared on the host and versioned with DVC; Docker mounts the same `data/` directory so training uses that exact snapshot. The CSV stays out of Git. DVC stores its content in a separate cache and remote.
+
+## Prepare and version the dataset with DVC
+
+Install the application and DVC development dependencies in a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+Initialize DVC once, then configure a local remote next to this repository. This remote is useful for learning `dvc push` and `dvc pull` on this computer; it is not a cloud backup and cannot be accessed by teammates:
+
+```bash
+dvc init
+dvc remote add -d local ../DEV-ML-OPS-PROJECT-dvc-storage
+dvc repro
+dvc push
+```
+
+`dvc repro` downloads the public UCI source if the selected CSV is not present, removes the excluded columns, validates the retained columns, and writes `data/raw/credit_default_selected.csv`. DVC records the stage in `dvc.lock` and stores the dataset by content hash. Commit the DVC metadata and `dvc.lock` to Git; do not commit the CSV. Later, the local remote can be replaced with an approved cloud remote without changing the training code.
+
+To restore the tracked dataset on this computer after deleting the working copy, run `dvc pull`. A new clone on another computer will need a shared remote configured before `dvc pull` can work.
 
 ## Run the end-to-end pipeline with Docker
 
@@ -68,6 +92,7 @@ uvicorn app.main:app --reload
 app/data.py       fetch, select, cache, and validate the UCI data
 app/train.py      train, compare, track, and register candidate models
 app/main.py       validated prediction API and Prometheus metrics
+app/prepare_data.py prepare the selected public dataset for DVC
 tests/            API input and response checks
 Dockerfile        shared image for MLflow, training, and API services
 docker-compose.yml
@@ -76,7 +101,7 @@ prometheus.yml
 
 ## Work remaining against the module brief
 
-- Version the selected dataset with DVC and configure a usable remote.
+- Replace the local DVC remote with shared cloud storage if collaboration or clean-clone data restoration is required.
 - Add GitHub Actions to run checks on commits or pull requests.
 - Add data-preparation and model-validation tests with a quality gate.
 - Add a monitoring dashboard and finish the deployment guide.

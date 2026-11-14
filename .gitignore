@@ -6,7 +6,7 @@ __pycache__/
 .env
 mlruns/
 mlflow-data/
-data/raw/
-data/processed/
 *.db
 .DS_Store
+.dvc/cache/
+data/raw/credit_default_selected.csv

@@ -1,0 +1,2 @@
+# Development and data-versioning tools; kept out of the runtime container.
+dvc>=3.50,<4.0
