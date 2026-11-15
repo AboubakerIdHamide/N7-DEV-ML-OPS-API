@@ -1,0 +1,2 @@
+# Starlette's TestClient uses httpx2 in current releases.
+httpx2

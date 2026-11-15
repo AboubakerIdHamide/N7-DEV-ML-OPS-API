@@ -38,6 +38,18 @@ dvc push
 
 To restore the tracked dataset on this computer after deleting the working copy, run `dvc pull`. A new clone on another computer will need a shared remote configured before `dvc pull` can work.
 
+## Run the automated checks
+
+The tests use small local data samples and a fake prediction model, so they do not need the UCI download or a running MLflow server:
+
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements-test.txt
+python -m pytest -q
+```
+
+GitHub Actions runs the same test command for pushes and pull requests targeting `main`.
+
 ## Run the end-to-end pipeline with Docker
 
 You need Docker with the Compose plugin and network access for the first dataset download. From this directory:
@@ -93,7 +105,7 @@ app/data.py       fetch, select, cache, and validate the UCI data
 app/train.py      train, compare, track, and register candidate models
 app/main.py       validated prediction API and Prometheus metrics
 app/prepare_data.py prepare the selected public dataset for DVC
-tests/            API input and response checks
+tests/            dataset validation and API behavior checks
 Dockerfile        shared image for MLflow, training, and API services
 docker-compose.yml
 prometheus.yml
