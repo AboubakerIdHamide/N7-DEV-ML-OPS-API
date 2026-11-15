@@ -1,22 +1,32 @@
+"""HTTP-level tests for request validation and prediction API behavior."""
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 
 
 class FakeModel:
+    """Small stand-in for the registered classifier used by API tests."""
+
     def predict(self, rows):
+        """Return one default-class label for each test request row."""
         return [1]
 
     def predict_proba(self, rows):
+        """Return probabilities ordered as no-default then default."""
         return [[0.2, 0.8]]
 
 
 class FakeNoDefaultModel(FakeModel):
+    """Fake classifier that predicts the no-default class."""
+
     def predict(self, rows):
+        """Return the no-default label for the test request."""
         return [0]
 
 
 def valid_application():
+    """Return one request body containing all required fields with valid values."""
     return {
         "limit_bal": 50000,
         "pay_0": -1,
@@ -55,6 +65,7 @@ def test_ready_endpoint_when_model_is_available(monkeypatch):
 
 def test_ready_endpoint_when_model_is_unavailable(monkeypatch):
     def unavailable_model():
+        """Simulate MLflow failing to load the registered model."""
         raise RuntimeError("model is not loaded")
 
     monkeypatch.setattr("app.main.get_model", unavailable_model)

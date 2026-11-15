@@ -17,6 +17,7 @@ from app.data import FEATURE_COLUMNS, TARGET_COLUMN, load_credit_dataset
 
 
 def main() -> None:
+    """Train two candidates, log their results, and register the best default-F1 model."""
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
     experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "credit-risk")
     model_name = os.getenv("MODEL_NAME", "credit-risk-classifier")
@@ -25,6 +26,7 @@ def main() -> None:
     mlflow.set_experiment(experiment_name)
 
     dataset = load_credit_dataset()
+    # Stratification keeps the default/no-default ratio similar in both subsets.
     x_train, x_test, y_train, y_test = train_test_split(
         dataset[FEATURE_COLUMNS],
         dataset[TARGET_COLUMN],
@@ -34,6 +36,7 @@ def main() -> None:
     )
 
     candidates = {
+        # Scaling is part of this pipeline, so it is fitted only on training data.
         "logistic_regression": make_pipeline(
             StandardScaler(), LogisticRegression(max_iter=1000, class_weight="balanced")
         ),
@@ -50,6 +53,7 @@ def main() -> None:
         with mlflow.start_run(run_name=model_key) as run:
             model.fit(x_train, y_train)
             predictions = model.predict(x_test)
+            # Rows are examples; column 1 is the probability of the default class.
             probabilities = model.predict_proba(x_test)[:, 1]
             metrics = {
                 "f1_default": f1_score(y_test, predictions, pos_label=1),
@@ -71,9 +75,20 @@ def main() -> None:
                 input_example=x_test.head(2),
                 skops_trusted_types=["sklearn.tree._tree.Tree"],
             )
-            results.append((metrics["f1_default"], run.info.run_id, model_key, metrics))
+            results.append(
+                {
+                    "f1_default": metrics["f1_default"],
+                    "run_id": run.info.run_id,
+                    "model_key": model_key,
+                    "metrics": metrics,
+                }
+            )
 
-    _, best_run_id, best_model_key, best_metrics = max(results, key=lambda item: item[0])
+    # Select by default-class F1, then use the named fields to keep each value clear.
+    best_result = max(results, key=lambda candidate: candidate["f1_default"])
+    best_run_id = best_result["run_id"]
+    best_model_key = best_result["model_key"]
+    best_metrics = best_result["metrics"]
     registered = mlflow.register_model(
         model_uri=f"runs:/{best_run_id}/model", name=model_name
     )

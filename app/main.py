@@ -35,6 +35,9 @@ app = FastAPI(
 
 
 class CreditApplication(BaseModel):
+    """Validated API fields for one client, named to match the public request schema."""
+
+    # Credit limit and repayment-status codes from the selected UCI features.
     limit_bal: float = Field(gt=0, allow_inf_nan=False, examples=[50000.0])
     pay_0: int = Field(ge=-2, le=9, examples=[-1])
     pay_2: int = Field(ge=-2, le=9, examples=[0])
@@ -42,6 +45,7 @@ class CreditApplication(BaseModel):
     pay_4: int = Field(ge=-2, le=9, examples=[0])
     pay_5: int = Field(ge=-2, le=9, examples=[0])
     pay_6: int = Field(ge=-2, le=9, examples=[0])
+    # Billed balances and payments for the six statement periods.
     bill_amt1: float = Field(allow_inf_nan=False, examples=[12000.0])
     bill_amt2: float = Field(allow_inf_nan=False, examples=[11000.0])
     bill_amt3: float = Field(allow_inf_nan=False, examples=[10500.0])
@@ -58,6 +62,7 @@ class CreditApplication(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_model():
+    """Load and cache the registered champion model for this API process."""
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
     try:
         return mlflow.sklearn.load_model(MODEL_URI)
@@ -75,7 +80,7 @@ def health() -> dict[str, str]:
 
 @app.get("/ready", tags=["operations"])
 def ready() -> dict[str, str]:
-    """Readiness probe: the registered model can be loaded."""
+    """Return ready only when the registered champion model can be loaded."""
     try:
         get_model()
         return {"status": "ready"}
@@ -85,7 +90,7 @@ def ready() -> dict[str, str]:
 
 @app.get("/schema", tags=["prediction"])
 def schema() -> dict[str, object]:
-    """Describe the fields and output classes expected by this API."""
+    """Describe the lowercase request fields and the model's two output classes."""
     return {
         "input_fields": [field.lower() for field in FEATURE_COLUMNS],
         "output_classes": {"0": "no_default", "1": "default"},
@@ -98,15 +103,19 @@ def schema() -> dict[str, object]:
 
 @app.post("/predict", tags=["prediction"])
 def predict(application: CreditApplication) -> dict[str, object]:
+    """Convert one request to model-column order and return its class and default chance."""
     start = perf_counter()
     try:
         model = get_model()
         input_values = application.model_dump()
+        # API fields are lowercase; FEATURE_COLUMNS holds the model's canonical uppercase names.
         row = pd.DataFrame(
             [{column: input_values[column.lower()] for column in FEATURE_COLUMNS}],
             columns=FEATURE_COLUMNS,
         )
+        # These model outputs have one row because the API scores one client per request.
         prediction = int(model.predict(row)[0])
+        # The second probability is for class 1, which represents default.
         probability_default = float(model.predict_proba(row)[0][1])
         PREDICTION_REQUESTS.labels(status="success").inc()
         return {
@@ -123,4 +132,5 @@ def predict(application: CreditApplication) -> dict[str, object]:
 
 @app.get("/metrics", include_in_schema=False)
 def metrics() -> Response:
+    """Expose Prometheus counters and latency histograms in scrape format."""
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

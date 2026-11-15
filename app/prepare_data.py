@@ -6,6 +6,7 @@ from app.data import DEFAULT_DATA_PATH, load_credit_dataset
 
 
 def main() -> None:
+    """Prepare the cached/remote dataset and report the resulting table dimensions."""
     dataset = load_credit_dataset()
     print(
         f"Prepared {len(dataset)} rows and {len(dataset.columns)} columns "

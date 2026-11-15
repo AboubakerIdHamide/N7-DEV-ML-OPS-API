@@ -14,13 +14,16 @@ import pandas as pd
 
 
 FEATURE_COLUMNS = [
+    # Available credit limit.
     "LIMIT_BAL",
+    # Repayment status for the current and prior billing periods.
     "PAY_0",
     "PAY_2",
     "PAY_3",
     "PAY_4",
     "PAY_5",
     "PAY_6",
+    # Billed amounts, followed by payments made, across six billing periods.
     "BILL_AMT1",
     "BILL_AMT2",
     "BILL_AMT3",
@@ -34,6 +37,7 @@ FEATURE_COLUMNS = [
     "PAY_AMT5",
     "PAY_AMT6",
 ]
+# Keep this order stable: the trainer and API use it to build model input tables.
 TARGET_COLUMN = "default_payment_next_month"
 DATASET_ID = 350
 DEFAULT_DATA_PATH = Path("data/raw/credit_default_selected.csv")
@@ -63,34 +67,40 @@ _SOURCE_COLUMN_ALIASES = {
 
 
 def _normalized_name(value: object) -> str:
+    """Normalize a source column label so punctuation and case do not matter."""
     return re.sub(r"[^A-Z0-9]", "", str(value).upper())
 
 
 def _select_features(source: pd.DataFrame) -> pd.DataFrame:
+    """Map UCI column names to the 19 canonical model inputs, excluding extras."""
     source_by_name = {_normalized_name(column): column for column in source.columns}
     selected = {}
     for canonical_name in FEATURE_COLUMNS:
         aliases = _SOURCE_COLUMN_ALIASES[canonical_name]
-        source_name = next(
-            (source_by_name[_normalized_name(alias)] for alias in aliases
-             if _normalized_name(alias) in source_by_name),
-            None,
-        )
+        source_name = None
+        for alias in aliases:
+            normalized_alias = _normalized_name(alias)
+            if normalized_alias in source_by_name:
+                source_name = source_by_name[normalized_alias]
+                break
         if source_name is None:
             raise ValueError(
                 f"UCI dataset is missing {canonical_name}; checked aliases {aliases}."
             )
+        # Reject text or malformed values instead of silently turning them into NaN.
         selected[canonical_name] = pd.to_numeric(source[source_name], errors="raise")
     return pd.DataFrame(selected)
 
 
 def _validate_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
+    """Return only required numeric columns and require both binary target classes."""
     expected_columns = [*FEATURE_COLUMNS, TARGET_COLUMN]
     missing_columns = set(expected_columns) - set(dataset.columns)
     if missing_columns:
         raise ValueError(f"Dataset is missing required columns: {sorted(missing_columns)}")
 
     cleaned = dataset[expected_columns].copy()
+    # The first any() checks each column; the second reduces those flags to one result.
     if cleaned.isna().any().any():
         raise ValueError("Dataset contains missing values; resolve them before training.")
 
@@ -105,6 +115,7 @@ def _validate_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
 
 
 def _fetch_from_uci() -> pd.DataFrame:
+    """Fetch UCI dataset 350, select approved features, and validate its target."""
     try:
         from ucimlrepo import fetch_ucirepo
     except ImportError as exc:
@@ -124,6 +135,7 @@ def _fetch_from_uci() -> pd.DataFrame:
     targets = repository_dataset.data.targets
     if targets is None or targets.shape[1] != 1:
         raise ValueError("Expected exactly one target column from UCI dataset 350.")
+    # The one-column UCI target is aligned row-for-row with the selected feature table.
     features[TARGET_COLUMN] = targets.iloc[:, 0].to_numpy()
     return _validate_dataset(features)
 

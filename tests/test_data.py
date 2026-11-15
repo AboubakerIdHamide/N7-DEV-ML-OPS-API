@@ -1,3 +1,5 @@
+"""Unit tests for feature selection, dataset validation, and cached loading."""
+
 import pandas as pd
 import pytest
 
@@ -11,6 +13,7 @@ from app.data import (
 
 
 def valid_dataset():
+    """Build a two-row dataset containing both required target classes."""
     values = {
         column: [index + 1, index + 2]
         for index, column in enumerate(FEATURE_COLUMNS)
@@ -87,6 +90,7 @@ def test_loader_reads_and_validates_cached_csv_without_fetching(tmp_path, monkey
     valid_dataset().to_csv(path, index=False)
 
     def fail_if_fetch_is_called():
+        """Fail the test if loading the cache tries to access UCI."""
         pytest.fail("cached dataset should be loaded without a network fetch")
 
     monkeypatch.setattr("app.data._fetch_from_uci", fail_if_fetch_is_called)
