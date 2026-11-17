@@ -60,7 +60,13 @@ docker compose run --rm trainer
 docker compose up --build api prometheus
 ```
 
-The training run compares Logistic Regression with Random Forest, logs default-class precision, recall, F1 and ROC-AUC to MLflow, and registers the model with the best default-class F1 score under the `champion` alias.
+The training run compares Logistic Regression with Random Forest and logs default-class precision, recall, F1 and ROC-AUC to MLflow. It promotes the candidate with the best default-class F1 to the `champion` alias only when that F1 is at least `MIN_DEFAULT_F1` (default: `0.40`). If both candidates score below the threshold, the training command fails after logging the runs and leaves the current champion unchanged. The threshold is an initial coursework setting; review it against your observed baseline before relying on it.
+
+To try a different threshold for one training run, set it before running Compose:
+
+```bash
+MIN_DEFAULT_F1=0.45 docker compose run --rm trainer
+```
 
 - API docs: <http://localhost:8000/docs>
 - API schema: <http://localhost:8000/schema>
@@ -114,7 +120,6 @@ prometheus.yml
 ## Work remaining against the module brief
 
 - Replace the local DVC remote with shared cloud storage if collaboration or clean-clone data restoration is required.
-- Add GitHub Actions to run checks on commits or pull requests.
-- Add data-preparation and model-validation tests with a quality gate.
+- Add tests for data preparation and the model quality gate.
 - Add a monitoring dashboard and finish the deployment guide.
 - Prepare the required technical report, presentation, and clean-clone demonstration.

@@ -17,10 +17,13 @@ from app.data import FEATURE_COLUMNS, TARGET_COLUMN, load_credit_dataset
 
 
 def main() -> None:
-    """Train two candidates, log their results, and register the best default-F1 model."""
+    """Train candidates and register the best model only if it meets the F1 gate."""
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
     experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "credit-risk")
     model_name = os.getenv("MODEL_NAME", "credit-risk-classifier")
+    minimum_default_f1 = float(os.getenv("MIN_DEFAULT_F1", "0.40"))
+    if not 0.0 <= minimum_default_f1 <= 1.0:
+        raise ValueError("MIN_DEFAULT_F1 must be between 0.0 and 1.0.")
 
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment_name)
@@ -89,11 +92,19 @@ def main() -> None:
     best_run_id = best_result["run_id"]
     best_model_key = best_result["model_key"]
     best_metrics = best_result["metrics"]
+    if best_result["f1_default"] < minimum_default_f1:
+        raise RuntimeError(
+            "Model quality gate failed: "
+            f"best default F1 {best_result['f1_default']:.3f} is below "
+            f"the required {minimum_default_f1:.3f}; champion was not changed."
+        )
+
     registered = mlflow.register_model(
         model_uri=f"runs:/{best_run_id}/model", name=model_name
     )
     MlflowClient().set_registered_model_alias(model_name, "champion", registered.version)
 
+    print(f"Model quality gate passed (minimum default F1: {minimum_default_f1:.3f})")
     print(f"Selected model by default F1: {best_model_key}")
     print(f"Held-out metrics: {best_metrics}")
     print(f"Registered model: models:/{model_name}@champion (version {registered.version})")
