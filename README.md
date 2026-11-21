@@ -57,7 +57,7 @@ You need Docker with the Compose plugin and network access for the first dataset
 ```bash
 docker compose up -d mlflow
 docker compose run --rm trainer
-docker compose up --build api prometheus
+docker compose up --build -d api prometheus grafana
 ```
 
 The training run compares Logistic Regression with Random Forest and logs default-class precision, recall, F1 and ROC-AUC to MLflow. It promotes the candidate with the best default-class F1 to the `champion` alias only when that F1 is at least `MIN_DEFAULT_F1` (default: `0.40`). If both candidates score below the threshold, the training command fails after logging the runs and leaves the current champion unchanged. The threshold is an initial coursework setting; review it against your observed baseline before relying on it.
@@ -74,7 +74,10 @@ MIN_DEFAULT_F1=0.45 docker compose run --rm trainer
 - API readiness: <http://localhost:8000/ready>
 - MLflow UI: <http://localhost:5000>
 - Prometheus: <http://localhost:9090>
+- Grafana dashboard: <http://localhost:3000>
 - API metrics: <http://localhost:8000/metrics>
+
+Grafana is provisioned with the Prometheus data source and an API monitoring dashboard. Sign in with `admin` / `admin` for local development. You can set `GRAFANA_ADMIN_PASSWORD` before starting Compose to use another local password. The dashboard shows API availability, successful and failed prediction counts, request rate, and prediction latency. Send a few `/predict` requests to populate the request and latency panels.
 
 ## Try a prediction
 
@@ -121,5 +124,5 @@ prometheus.yml
 
 - Replace the local DVC remote with shared cloud storage if collaboration or clean-clone data restoration is required.
 - Add tests for data preparation and the model quality gate.
-- Add a monitoring dashboard and finish the deployment guide.
+- Finish the deployment guide and clean-clone demonstration.
 - Prepare the required technical report, presentation, and clean-clone demonstration.
