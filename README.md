@@ -123,6 +123,5 @@ prometheus.yml
 ## Work remaining against the module brief
 
 - Replace the local DVC remote with shared cloud storage if collaboration or clean-clone data restoration is required.
-- Add tests for data preparation and the model quality gate.
 - Finish the deployment guide and clean-clone demonstration.
 - Prepare the required technical report, presentation, and clean-clone demonstration.

@@ -1,6 +1,7 @@
 """Train candidate binary classifiers and record the selected model in MLflow."""
 
 import os
+from math import isfinite
 
 import mlflow
 import mlflow.sklearn
@@ -16,14 +17,40 @@ from sklearn.preprocessing import StandardScaler
 from app.data import FEATURE_COLUMNS, TARGET_COLUMN, load_credit_dataset
 
 
+def _validate_minimum_default_f1(value: float) -> float:
+    """Require a finite F1 threshold between zero and one."""
+    if not isfinite(value) or not 0.0 <= value <= 1.0:
+        raise ValueError("MIN_DEFAULT_F1 must be between 0.0 and 1.0.")
+    return value
+
+
+def _promote_candidate(
+    best_result: dict[str, object], model_name: str, minimum_default_f1: float
+):
+    """Register and alias the candidate only after it clears the F1 quality gate."""
+    best_f1 = float(best_result["f1_default"])
+    if best_f1 < minimum_default_f1:
+        raise RuntimeError(
+            "Model quality gate failed: "
+            f"best default F1 {best_f1:.3f} is below "
+            f"the required {minimum_default_f1:.3f}; champion was not changed."
+        )
+
+    registered = mlflow.register_model(
+        model_uri=f"runs:/{best_result['run_id']}/model", name=model_name
+    )
+    MlflowClient().set_registered_model_alias(model_name, "champion", registered.version)
+    return registered
+
+
 def main() -> None:
     """Train candidates and register the best model only if it meets the F1 gate."""
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
     experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "credit-risk")
     model_name = os.getenv("MODEL_NAME", "credit-risk-classifier")
-    minimum_default_f1 = float(os.getenv("MIN_DEFAULT_F1", "0.40"))
-    if not 0.0 <= minimum_default_f1 <= 1.0:
-        raise ValueError("MIN_DEFAULT_F1 must be between 0.0 and 1.0.")
+    minimum_default_f1 = _validate_minimum_default_f1(
+        float(os.getenv("MIN_DEFAULT_F1", "0.40"))
+    )
 
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment_name)
@@ -89,20 +116,9 @@ def main() -> None:
 
     # Select by default-class F1, then use the named fields to keep each value clear.
     best_result = max(results, key=lambda candidate: candidate["f1_default"])
-    best_run_id = best_result["run_id"]
     best_model_key = best_result["model_key"]
     best_metrics = best_result["metrics"]
-    if best_result["f1_default"] < minimum_default_f1:
-        raise RuntimeError(
-            "Model quality gate failed: "
-            f"best default F1 {best_result['f1_default']:.3f} is below "
-            f"the required {minimum_default_f1:.3f}; champion was not changed."
-        )
-
-    registered = mlflow.register_model(
-        model_uri=f"runs:/{best_run_id}/model", name=model_name
-    )
-    MlflowClient().set_registered_model_alias(model_name, "champion", registered.version)
+    registered = _promote_candidate(best_result, model_name, minimum_default_f1)
 
     print(f"Model quality gate passed (minimum default F1: {minimum_default_f1:.3f})")
     print(f"Selected model by default F1: {best_model_key}")
